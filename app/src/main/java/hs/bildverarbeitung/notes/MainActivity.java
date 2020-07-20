@@ -2,12 +2,10 @@ package hs.bildverarbeitung.notes;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
 
 import android.Manifest;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.MediaPlayer;
@@ -18,15 +16,11 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.util.SparseArray;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import com.google.android.gms.vision.CameraSource;
-import com.google.android.gms.vision.Detector;
 import com.google.android.gms.vision.Frame;
 import com.google.android.gms.vision.text.TextBlock;
 import com.google.android.gms.vision.text.TextRecognizer;
@@ -34,7 +28,9 @@ import com.google.android.gms.vision.text.TextRecognizer;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -46,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     Button btnPlay;
 
     String pathToFile;
+    int currentPosition;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,20 +116,75 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 songname[0] = textRecognition(finalBitmap);
+
+                if(songname[0] != null) {
+                    List<String> songs = getSongs(songname[0]);
+
+                    StringBuilder notes = new StringBuilder();
+                    for (int i = 0; i < songs.size(); i++) {
+                        notes.append(songs.get(i)).append(" ");
+                    }
+                    textView.setText(notes);
+
+                    playNote(songs);
+                }
+                else {
+                    textView.setText("Es konnte keine Note erkannt werden.");
+                }
             }
         });
-
-        String[] songs = getSongs(songname[0]);
-
-        if(songs != null) {
-            playNote(songs);
-        }
     }
 
-    private String[] getSongs(String songname) {
-        //String[] result = songname;
-        //ToDo Songname aufspliten in song tracks
-        return result;
+    private List<String> getSongs(String songname) {
+        List<String> songs = new ArrayList<>();
+        System.out.println(songname);
+        for (int i = 0; i < songname.length() ; i++) {
+            char song = songname.charAt(i);
+            if(song == 'b') {
+                if(songname.charAt(i+1) == 'H') {
+                    songs.add("B");
+                } else {
+                    songs.add(String.valueOf(song) + songname.charAt(i + 1));
+                }
+                i++;
+            } else if (song == 'h') {
+                songs.add(String.valueOf(song) + songname.charAt(i + 1));
+                i++;
+            } else if (song == 'C' || song == 'D' || song == 'F' || song == 'G' || song == 'A') {
+                char halbtonCheck = songname.charAt(i+1);
+                if(halbtonCheck == 'i') {
+                    songs.add('h' + String.valueOf(song));
+                    i = i+2;
+                } else if(halbtonCheck == 'e') {
+                    songs.add('b' + String.valueOf(song));
+                    i = i+2;
+                } else {
+                    songs.add(String.valueOf(song));
+                }
+            } else if (song == 'H') {
+                char halbtonCheck = songname.charAt(i+1);
+                if(halbtonCheck == 'i') {
+                    songs.add('h' + String.valueOf(song));
+                    i = i+2;
+                } else if(halbtonCheck == 'e') {
+                    songs.add("B");
+                    i = i+2;
+                } else {
+                    songs.add(String.valueOf(song));
+                }
+            } else if (song == 'E') {
+                char halbtonCheck = songname.charAt(i+1);
+                if(halbtonCheck == 's') {
+                    songs.add('b' + String.valueOf(song));
+                    i++;
+                } else {
+                    songs.add(String.valueOf(song));
+                }
+            } else if (song == 'B') {
+                songs.add("B");
+            }
+        }
+        return songs;
     }
 
     private String textRecognition(Bitmap bitmap) {
@@ -148,25 +200,50 @@ public class MainActivity extends AppCompatActivity {
                 stringBuilder.append(item.getValue());
                 stringBuilder.append("\n");
             }
-            textView.setText(stringBuilder.toString());
             return stringBuilder.toString();
         }
 
-
+        return null;
     }
 
-    private void playNote(String[] name) {
-//        if(player == null) {
-//            Uri uri = Uri.parse("android.resource://" + getPackageName() + "/raw/" + name);
-//            player = MediaPlayer.create(this, uri);
-//            player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-//                @Override
-//                public void onCompletion(MediaPlayer mp) {
-//                    stopPlayer();
-//                }
-//            });
-//        }
-//        player.start();
+    private void playNote(List<String> name) {
+        currentPosition = 0;
+        final List<Uri> songlist = new ArrayList<>();
+        for (int i = 0; i < name.size(); i++) {
+            songlist.add(Uri.parse("android.resource://" + getPackageName() + "/raw/" + name.get(i).toLowerCase()));
+        }
+
+
+        if(player == null) {
+            //Uri uri = Uri.parse("android.resource://" + getPackageName() + "/raw/" + name.get(0));
+            player = MediaPlayer.create(this, songlist.get(currentPosition));
+            player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                @Override
+                public void onCompletion(MediaPlayer mp) {
+                    currentPosition = currentPosition+1;
+                    if(currentPosition<songlist.size())
+                    {
+                        mp.reset();
+                        try {
+                            /* load the new source */
+                            mp.setDataSource(MainActivity.this ,songlist.get(currentPosition));
+                            /* Prepare the mediaplayer */
+                            mp.prepare();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        /* start */
+                        mp.start();
+                    }
+                    else
+                    {
+                        /* release mediaplayer */
+                        stopPlayer();
+                    }
+                }
+            });
+        }
+        player.start();
     }
 
     private void stopPlayer() {
@@ -181,78 +258,4 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
         stopPlayer();
     }
-
-//        cameraView = (SurfaceView) findViewById(R.id.surface_view);
-//        textBlockContent = (TextView) findViewById(R.id.text_value);
-//
-//        TextRecognizer textRecognizer = new TextRecognizer.Builder(getApplicationContext()).build();
-//        if (!textRecognizer.isOperational()) {
-//            Log.w("MainActivity", "Detector dependencies are not yet available.");
-//        }
-//
-//        cameraSource = new CameraSource.Builder(getApplicationContext(), textRecognizer)
-//                .setFacing(CameraSource.CAMERA_FACING_BACK)
-//                .setRequestedPreviewSize(1280, 1024)
-//                .setRequestedFps(2.0f)
-//                .setAutoFocusEnabled(true)
-//                .build();
-//
-//        cameraView.getHolder().addCallback(new SurfaceHolder.Callback() {
-//            @Override
-//            public void surfaceCreated(SurfaceHolder holder) {
-//                try {
-//                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-//                        requestPermissions(new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 2);
-//                        return;
-//                    }
-//                    cameraSource.start(cameraView.getHolder());
-//                } catch (IOException ex) {
-//                    ex.printStackTrace();
-//                }
-//            }
-//
-//            @Override
-//            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-//            }
-//
-//            @Override
-//            public void surfaceDestroyed(SurfaceHolder holder) {
-//                cameraSource.stop();
-//            }
-//        });
-//
-//        textRecognizer.setProcessor(new Detector.Processor<TextBlock>() {
-//            @Override
-//            public void release() {
-//            }
-//
-//            @Override
-//            public void receiveDetections(Detector.Detections<TextBlock> detections) {
-//                Log.d("Main", "receiveDetections");
-//                final SparseArray<TextBlock> items = detections.getDetectedItems();
-//                if (items.size() != 0) {
-//                    textBlockContent.post(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            StringBuilder value = new StringBuilder();
-//                            for (int i = 0; i < items.size(); ++i) {
-//                                TextBlock item = items.valueAt(i);
-//                                value.append(item.getValue());
-//                                value.append("\n");
-//                            }
-//                            //update text block content to TextView
-//                            textBlockContent.setText(value.toString());
-//                        }
-//                    });
-//                }
-//
-//            }
-//        });
-
-
-//    @Override
-//    protected void onDestroy() {
-//        super.onDestroy();
-//        cameraSource.release();
-//    }
 }
