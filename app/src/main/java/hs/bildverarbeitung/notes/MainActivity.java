@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
         btnCamera.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                textView.setText("Noticed Notes");
                 Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 if(intent.resolveActivity(getPackageManager()) != null) {
                     File photoFile = createFile();
@@ -103,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
 
         Bitmap bitmap = null;
         final String[] songname = {null};
+        List<String> songs = null;
 
         if(resultCode == RESULT_OK) {
             if(requestCode == 1) {
@@ -111,26 +113,25 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        final Bitmap finalBitmap = bitmap;
+        songname[0] = textRecognition(bitmap);
+        if(songname[0] != null) {
+            songs = getSongs(songname[0]);
+
+            StringBuilder notes = new StringBuilder();
+            for (int i = 0; i < songs.size(); i++) {
+                notes.append(songs.get(i)).append(" ");
+            }
+            textView.setText(notes);
+        }
+        else {
+            textView.setText("Es konnte keine Note erkannt werden.");
+        }
+
+        final List<String> finalSongs = songs;
         btnPlay.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                songname[0] = textRecognition(finalBitmap);
-
-                if(songname[0] != null) {
-                    List<String> songs = getSongs(songname[0]);
-
-                    StringBuilder notes = new StringBuilder();
-                    for (int i = 0; i < songs.size(); i++) {
-                        notes.append(songs.get(i)).append(" ");
-                    }
-                    textView.setText(notes);
-
-                    playNote(songs);
-                }
-                else {
-                    textView.setText("Es konnte keine Note erkannt werden.");
-                }
+                    playNote(finalSongs);
             }
         });
     }
@@ -138,53 +139,96 @@ public class MainActivity extends AppCompatActivity {
     private List<String> getSongs(String songname) {
         List<String> songs = new ArrayList<>();
         System.out.println(songname);
+
+
         for (int i = 0; i < songname.length() ; i++) {
             char song = songname.charAt(i);
-            if(song == 'b') {
-                if(songname.charAt(i+1) == 'H') {
-                    songs.add("B");
-                } else {
-                    songs.add(String.valueOf(song) + songname.charAt(i + 1));
-                }
-                i++;
-            } else if (song == 'h') {
-                songs.add(String.valueOf(song) + songname.charAt(i + 1));
-                i++;
-            } else if (song == 'C' || song == 'D' || song == 'F' || song == 'G' || song == 'A') {
+            int x;
+
+            if((song == 'b' && songname.charAt(i+1) == 'H') || song == 'B') {
+                int y = (song == 'B'? i+1 : i+2);
+                x = checkHeight(songname, y);
+                songs.add(buildNoteName(null, String.valueOf('B'), x));
+                i = i + 1 + x;
+            } else if(song == 'b' || song == 'h') {
+                x = checkHeight(songname, i+2);
+                songs.add(buildNoteName(String.valueOf(song), String.valueOf(songname.charAt(i+1)), x));
+                i = i + 1 + x;
+            } else if(song == 'C' || song == 'D' || song == 'F' || song == 'G') {
                 char halbtonCheck = songname.charAt(i+1);
                 if(halbtonCheck == 'i') {
-                    songs.add('h' + String.valueOf(song));
-                    i = i+2;
+                    x = checkHeight(songname, i+3);
+                    songs.add(buildNoteName(String.valueOf('h'), String.valueOf(song), x));
+                    i = i+2+x;
                 } else if(halbtonCheck == 'e') {
-                    songs.add('b' + String.valueOf(song));
-                    i = i+2;
+                    x = checkHeight(songname, i+3);
+                    songs.add(buildNoteName(String.valueOf('b'), String.valueOf(song), x));
+                    i = i+2+x;
                 } else {
-                    songs.add(String.valueOf(song));
+                    x = checkHeight(songname, i+1);
+                    songs.add(buildNoteName(null, String.valueOf(song), x));
+                    i = i+x;
                 }
             } else if (song == 'H') {
                 char halbtonCheck = songname.charAt(i+1);
                 if(halbtonCheck == 'i') {
-                    songs.add('h' + String.valueOf(song));
-                    i = i+2;
+                    x = checkHeight(songname, i+3);
+                    songs.add(buildNoteName(String.valueOf('h'), String.valueOf(song), x));
+                    i = i+2+x;
                 } else if(halbtonCheck == 'e') {
-                    songs.add("B");
-                    i = i+2;
+                    x = checkHeight(songname, i+3);
+                    songs.add(buildNoteName(null, String.valueOf('B'), x));
+                    i = i+2+x;
                 } else {
-                    songs.add(String.valueOf(song));
+                    x = checkHeight(songname, i+1);
+                    songs.add(buildNoteName(null, String.valueOf(song), x));
+                    i = i+x;
                 }
-            } else if (song == 'E') {
-                char halbtonCheck = songname.charAt(i+1);
-                if(halbtonCheck == 's') {
-                    songs.add('b' + String.valueOf(song));
-                    i++;
+            } else if (song == 'E' || song == 'A') {
+                char halbtonCheck = songname.charAt(i + 1);
+                if (halbtonCheck == 's' || halbtonCheck == 'S') {
+                    x = checkHeight(songname, i+2);
+                    songs.add(buildNoteName(String.valueOf('b'), String.valueOf(song), x));
+                    i = i+1+x;
+                } else if(halbtonCheck == 'i') {
+                    x = checkHeight(songname, i + 3);
+                    songs.add(buildNoteName(String.valueOf('h'), String.valueOf(song), x));
+                    i = i + 2 + x;
                 } else {
-                    songs.add(String.valueOf(song));
+                    x = checkHeight(songname, i+1);
+                    songs.add(buildNoteName(null, String.valueOf(song), x));
+                    i = i+x;
                 }
-            } else if (song == 'B') {
-                songs.add("B");
             }
         }
+
         return songs;
+    }
+
+    private String buildNoteName(String tone, String note, int pitch) {
+        String height = null;
+        if (pitch == 0) {
+            height = "low";
+        } else if (pitch == 1) {
+            height = "middle";
+        } else if (pitch == 2) {
+            height = "high";
+        }
+
+        if (tone == null) {
+            return note + height;
+        } else {
+            return tone + note + height;
+        }
+
+    }
+
+    private int checkHeight(String songname, int i) {
+        int height = (songname.charAt(i) == '!'? 1:0);
+        if (height==1) {
+            height = (songname.charAt(i+1) == '!'? 2:1);
+        }
+        return height;
     }
 
     private String textRecognition(Bitmap bitmap) {
@@ -215,7 +259,6 @@ public class MainActivity extends AppCompatActivity {
 
 
         if(player == null) {
-            //Uri uri = Uri.parse("android.resource://" + getPackageName() + "/raw/" + name.get(0));
             player = MediaPlayer.create(this, songlist.get(currentPosition));
             player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override
