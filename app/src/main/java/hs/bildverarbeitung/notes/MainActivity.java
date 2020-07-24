@@ -151,9 +151,12 @@ public class MainActivity extends AppCompatActivity {
                 songs.add(buildNoteName(null, String.valueOf('B'), x));
                 i = i + 1 + x;
             } else if(song == 'b' || song == 'h') {
-                x = checkHeight(songname, i+2);
-                songs.add(buildNoteName(String.valueOf(song), String.valueOf(songname.charAt(i+1)), x));
-                i = i + 1 + x;
+                char note = songname.charAt(i+1);
+                if(note == 'C' || note == 'D' || note == 'E' || note == 'F' || note == 'G'|| note == 'A'|| note == 'H') {
+                    x = checkHeight(songname, i+2);
+                    songs.add(buildNoteName(String.valueOf(song), String.valueOf(note), x));
+                    i = i + 1 + x;
+                }
             } else if(song == 'C' || song == 'D' || song == 'F' || song == 'G') {
                 char halbtonCheck = songname.charAt(i+1);
                 if(halbtonCheck == 'i') {
@@ -224,11 +227,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private int checkHeight(String songname, int i) {
-        int height = (songname.charAt(i) == '!'? 1:0);
-        if (height==1) {
-            height = (songname.charAt(i+1) == '!'? 2:1);
+        if(songname.length() >= i) {
+            int height = (songname.charAt(i) == '!'? 1:0);
+            if (height==1 && (songname.length() >= i+1)) {
+                height = (songname.charAt(i+1) == '!'? 2:1);
+            }
+            return height;
         }
-        return height;
+        return 0;
     }
 
     private String textRecognition(Bitmap bitmap) {
