@@ -233,7 +233,6 @@ public class MainActivity extends AppCompatActivity {
 
     private String textRecognition(Bitmap bitmap) {
         Frame frame = new Frame.Builder().setBitmap(bitmap).build();
-
         final SparseArray<TextBlock> items = textRecognizer.detect(frame);
         if (items.size() != 0)
         {
