@@ -44,20 +44,28 @@ public class MainActivity extends AppCompatActivity {
     String pathToFile;
     int currentPosition;
 
+    /*
+     * Initialisierung aller Felder der View
+     * Abfrage Kamera und Speicherzugriff
+     * Starten der Kamera auf Knopfdruck
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        /* Initial anlegen der Viewelemente */
         Button btnCamera = (Button) findViewById(R.id.btnCamera);
         btnPlay = (Button) findViewById(R.id.btnPlay);
         imageView = (ImageView) findViewById(R.id.imageView);
         textView = (TextView) findViewById(R.id.textView);
 
+        /* Abfrage Berechtigung auf Kamera */
         if (Build.VERSION.SDK_INT >= 23) {
             requestPermissions(new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 2);
         }
 
+        /* Abfrage ob Bibliothek für die Texterkennung funktionsfähig ist */
         textRecognizer = new TextRecognizer.Builder(getApplicationContext()).build();
         if (!textRecognizer.isOperational()) {
             Log.w("MainActivity", "Detector dependencies are not yet available.");
@@ -70,10 +78,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 textView.setText("Noticed Notes");
+                /* Kamera starten */
                 Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 if(intent.resolveActivity(getPackageManager()) != null) {
                     File photoFile = createFile();
                     if(photoFile != null) {
+                        /* aufgenommenes Foto da der Stelle des temporären Fotos speichern */
                         pathToFile = photoFile.getAbsolutePath();
                         Uri photoURI = FileProvider.getUriForFile(MainActivity.this, "hs.bildverarbeitung.notes.fileprovider", photoFile);
                         intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
@@ -85,6 +95,10 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /*
+     * @return: Temporäres File für das aufgenommenen Bild
+     * Anlegen einer temporären Datei, unter welchem später das aufgenommene Bild gespeichert wird.
+     */
     private File createFile() {
         File image = null;
         String name = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
@@ -98,6 +112,10 @@ public class MainActivity extends AppCompatActivity {
         return image;
     }
 
+    /*
+     * Erstellen der Bitmap und übergeben zur Anzeige und Texterkennung
+     * Anzeige alle erkannter Noten in lateinischer Umschrift
+     */
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -106,6 +124,7 @@ public class MainActivity extends AppCompatActivity {
         final String[] songname = {null};
         List<String> songs = null;
 
+        /* Auslesen des Bildes zur Bitmap und Anzeigen in der Imageview der App */
         if(resultCode == RESULT_OK) {
             if(requestCode == 1) {
                 bitmap = BitmapFactory.decodeFile(pathToFile);
@@ -113,10 +132,13 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        /* Texterkennung aufruf */
         songname[0] = textRecognition(bitmap);
         if(songname[0] != null) {
+            /* Notennamen aus erkanntem Text filtern */
             songs = getSongs(songname[0]);
 
+            /* Notenliste in String zur Anzeige umformatieren*/
             StringBuilder notes = new StringBuilder();
             for (int i = 0; i < songs.size(); i++) {
                 notes.append(songs.get(i)).append(" ");
@@ -124,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
             textView.setText(notes);
         }
         else {
+            /* 'Fehlerausgabe' falls keine Note erkannt wurde*/
             textView.setText("Es konnte keine Note erkannt werden.");
         }
 
@@ -131,11 +154,18 @@ public class MainActivity extends AppCompatActivity {
         btnPlay.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                    playNote(finalSongs);
+                /* Aufrufen des Players */
+                playNote(finalSongs);
             }
         });
     }
 
+    /*
+    * @Params: String des erkannten Textes
+    * @return: Liste der erkannten einzel Noten
+    * Erkennen der Noten, ihre Halbtöne und Oktavenlage aus dem Text des Bildes
+    * Untersuchen String auf halbton Markierungen (b, h) oder Noten (Großbuchstaben)
+    */
     private List<String> getSongs(String songname) {
         List<String> songs = new ArrayList<>();
         System.out.println(songname);
@@ -208,6 +238,14 @@ public class MainActivity extends AppCompatActivity {
         return songs;
     }
 
+    /*
+     * @Params: tone String um welchen Halbton handelt es sich (b,h),
+     *          note String welche Note (C,D,E,F,G,A,H),
+     *          pitch welche Oktave
+     * @return: String des Notennamens -> entspricht Audiodateinamen
+     * Umschreiben der Höhe für die Oktave (vorerst low-high / 3 Oktaven)
+     * und zusammenbauen des Strings für den Notennamen
+     */
     private String buildNoteName(String tone, String note, int pitch) {
         String height = null;
         if (pitch == 0) {
@@ -223,9 +261,14 @@ public class MainActivity extends AppCompatActivity {
         } else {
             return tone + note + height;
         }
-
     }
 
+    /*
+     * @Params: String aller erkannter Noten,
+     *          i ab gegebener Stelle ist zu suchen
+     * @return: Anzahl gefundener Ausrufezeichen für Tonhöhe
+     * Erkennen der Anzahl von Ausrufezeichen hinter einer Note
+     */
     private int checkHeight(String songname, int i) {
         if(songname.length() >= i) {
             int height = (songname.charAt(i) == '!'? 1:0);
@@ -237,12 +280,19 @@ public class MainActivity extends AppCompatActivity {
         return 0;
     }
 
+    /*
+     * @Params: Bitmap des Bildes
+     * @return: String des erkannten Textes
+     * Erkennen des Textes im Bild, umschreiben in einen String
+     */
     private String textRecognition(Bitmap bitmap) {
         Frame frame = new Frame.Builder().setBitmap(bitmap).build();
+        /* Texterkennung durch die Bibliotheksfunktion */
         final SparseArray<TextBlock> items = textRecognizer.detect(frame);
         if (items.size() != 0)
         {
             StringBuilder stringBuilder = new StringBuilder();
+            /* Umschreiben der Liste in einen String */
             for (int i=0 ; i<items.size(); i++)
             {
                 TextBlock item = items.valueAt(i);
@@ -251,21 +301,29 @@ public class MainActivity extends AppCompatActivity {
             }
             return stringBuilder.toString();
         }
-
+        /* Sollte kein Text erkannt werden, Rückgabe null */
         return null;
     }
 
+    /*
+     * @Params: Liste von Strings der Notennamen (gleichen den Audiodateinamen)
+     * Erstellen der Playlist, anhand der Audiodateinamen und nacheinander
+     * abspielen der Noten
+     */
     private void playNote(List<String> name) {
         currentPosition = 0;
         final List<Uri> songlist = new ArrayList<>();
+        /* Hinzufügen der Audiodateien zur Playlist */
         for (int i = 0; i < name.size(); i++) {
             songlist.add(Uri.parse("android.resource://" + getPackageName() + "/raw/" + name.get(i).toLowerCase()));
         }
 
 
         if(player == null) {
+            /* Mediaplayer mit erster Audiodatei erstellen */
             player = MediaPlayer.create(this, songlist.get(currentPosition));
             player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                /* Nach Ende der Audiodatei auszuführender Code */
                 @Override
                 public void onCompletion(MediaPlayer mp) {
                     currentPosition = currentPosition+1;
@@ -273,19 +331,19 @@ public class MainActivity extends AppCompatActivity {
                     {
                         mp.reset();
                         try {
-                            /* load the new source */
+                            /* neue Audiodatei laden */
                             mp.setDataSource(MainActivity.this ,songlist.get(currentPosition));
-                            /* Prepare the mediaplayer */
+                            /* Mediaplayer vorbereiten */
                             mp.prepare();
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        /* start */
+                        /* Mediaplayer starten */
                         mp.start();
                     }
                     else
                     {
-                        /* release mediaplayer */
+                        /* Mediaplayer stoppen */
                         stopPlayer();
                     }
                 }
@@ -294,13 +352,21 @@ public class MainActivity extends AppCompatActivity {
         player.start();
     }
 
+    /*
+    * Freigeben des Mediaplayers
+    */
     private void stopPlayer() {
         if(player != null) {
+            /* release mediaplayer */
             player.release();
             player = null;
         }
     }
 
+    /*
+    * Wird die App geschlossen oder läuft nur noch im Hintergrund,
+    * stoppen der Ton ausgabe
+     */
     @Override
     protected void onStop() {
         super.onStop();
